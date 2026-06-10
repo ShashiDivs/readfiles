@@ -194,7 +194,7 @@ def extract_chunk(chunk_text: str, file_type: str, chunk_no: int, total_chunks: 
             {"role": "user",   "content": f"Raw Excel data (chunk {chunk_no} of {total_chunks}):\n\n{chunk_text}\n\nReturn valid JSON only."}
         ],
         temperature=0,
-        max_tokens=4096,
+        max_tokens=8192,
         response_format={"type": "json_object"}
     )
 
@@ -550,9 +550,13 @@ def run():
 
         # Extract
         bank_data = extract(str(bank_file), "bank_statement", log_extract, sheet_name=bank_sheet)
+        bank_tx_count = len(bank_data.get("transactions", []))
+        print(f"  Extracted {bank_tx_count} transactions from bank statement")
         print_extraction(f"BANK STATEMENT — {bank_name}", bank_data)
 
         gl_data = extract(str(gl_file), "bank_gl", log_extract, sheet_name=gl_sheet)
+        gl_tx_count = len(gl_data.get("entries", []))
+        print(f"  Extracted {gl_tx_count} entries from GL")
         print_extraction(f"GL ENTRIES — {bank_name}", gl_data)
 
         # Match
