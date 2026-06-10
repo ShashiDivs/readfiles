@@ -34,7 +34,7 @@ PROMPTS_DIR = Path(__file__).parent / "prompts"
 DATA_DIR    = Path(__file__).parent / "data"
 LOGS_DIR    = Path(__file__).parent / "logs"
 
-CHUNK_SIZE  = 300
+CHUNK_SIZE  = 150  # smaller chunks keep output within max_tokens limit
 
 
 # ── Logger ─────────────────────────────────────────────────────────────────────
@@ -194,21 +194,41 @@ def extract_chunk(chunk_text: str, file_type: str, chunk_no: int, total_chunks: 
             {"role": "user",   "content": f"Raw Excel data (chunk {chunk_no} of {total_chunks}):\n\n{chunk_text}\n\nReturn valid JSON only."}
         ],
         temperature=0,
+        max_tokens=4096,
         response_format={"type": "json_object"}
     )
 
     duration_ms = round((time.time() - start) * 1000)
     usage = response.usage
+    finish_reason = response.choices[0].finish_reason
+
     log.info(
         "Chunk extraction complete",
         extra={
             "chunk":         f"{chunk_no}/{total_chunks}",
             "input_tokens":  usage.prompt_tokens,
             "output_tokens": usage.completion_tokens,
+            "finish_reason": finish_reason,
             "duration_ms":   duration_ms
         }
     )
-    return json.loads(response.choices[0].message.content)
+
+    if finish_reason == "length":
+        log.warning(
+            "Response truncated — output hit max_tokens limit, reduce CHUNK_SIZE if this persists",
+            extra={"chunk": f"{chunk_no}/{total_chunks}"}
+        )
+
+    try:
+        return json.loads(response.choices[0].message.content)
+    except json.JSONDecodeError as e:
+        log.error(
+            "JSON parse failed — response likely truncated",
+            extra={"chunk": f"{chunk_no}/{total_chunks}", "error": str(e)}
+        )
+        # Return empty structure so pipeline continues with other chunks
+        tx_key = "transactions" if file_type == "bank_statement" else "entries"
+        return {tx_key: []}
 
 
 def merge_results(results: list, file_type: str) -> dict:
