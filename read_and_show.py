@@ -485,12 +485,35 @@ def run():
         bank_name  = bank_info["name"]
         bank_sheet = bank_info.get("sheet")
 
-        # Match GL bank — try exact then case-insensitive
+        # Pairing strategy:
+        # 1. Exact name match (case-insensitive)
+        # 2. Partial name match — bank name contains GL name or vice versa
+        # 3. If only one bank on each side, pair them directly regardless of name
         gl_sheet = gl_lookup.get(bank_name.upper())
+
+        if not gl_sheet:
+            # Try partial match — "JPMorgan Chase Bank, NA Mumbai" contains "JPMORGAN"
+            for gl_name, sheet in gl_lookup.items():
+                if gl_name in bank_name.upper() or bank_name.upper() in gl_name:
+                    gl_sheet = sheet
+                    log_main.info(
+                        "Paired by partial name match",
+                        extra={"bank": bank_name, "gl_name": gl_name}
+                    )
+                    break
+
+        if not gl_sheet and len(bank_banks) == 1 and len(gl_banks) == 1:
+            # Single bank on each side — pair them directly
+            gl_sheet = gl_banks[0].get("sheet")
+            log_main.info(
+                "Paired by single-bank fallback",
+                extra={"bank": bank_name, "gl_name": gl_banks[0]["name"]}
+            )
+
         if not gl_sheet:
             log_main.warning(
                 "No matching GL entries found for bank — skipping",
-                extra={"bank": bank_name}
+                extra={"bank": bank_name, "available_gl_banks": list(gl_lookup.keys())}
             )
             print(f"\n  ⚠  No GL entries found for {bank_name} — skipping")
             continue
