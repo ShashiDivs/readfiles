@@ -81,8 +81,9 @@ def inspect_sheet(file_name: str, sheet: str, raw: pd.DataFrame):
     print(f"  {'─'*32} {'─'*28} {'─'*30}")
 
     flags = []
-    for col in df.columns:
-        values = df[col].dropna()
+    for col_pos, col in enumerate(df.columns):
+        # iloc by position — df[col] breaks when column names repeat
+        values = df.iloc[:, col_pos].dropna()
         types  = values.map(classify_value).value_counts().to_dict() if len(values) else {}
         type_desc = ", ".join(f"{t}({n})" for t, n in list(types.items())[:3]) or "all empty"
 
